@@ -1,0 +1,11 @@
+# Node & Server
+node_modules/
+.env
+
+# Python & ML Engine
+venv/
+__pycache__/
+*.pyc
+
+# Mac OS
+.DS_Store

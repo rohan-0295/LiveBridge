@@ -40,6 +40,27 @@ app.get('/api/test-db', async (req, res) => {
     }
 });
 
+// 3. Fetch all active emergencies for the Dispatcher Map
+app.get('/api/emergencies', async (req, res) => {
+    try {
+        // PostGIS Magic: We use ST_Y and ST_X to extract latitude and longitude 
+        // back out of the mathematical geography object!
+        const allEmergencies = await pool.query(
+            `SELECT id, user_id, severity_score, status, 
+             ST_Y(location::geometry) as latitude, 
+             ST_X(location::geometry) as longitude,
+             created_at 
+             FROM emergencies 
+             WHERE status = 'pending' 
+             ORDER BY created_at DESC;`
+        );
+        res.json(allEmergencies.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: "Failed to fetch emergencies." });
+    }
+});
+
 
 // --- NEW LIVEBRIDGE API ROUTES ---
 

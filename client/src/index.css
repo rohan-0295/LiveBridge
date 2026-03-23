@@ -1,16 +1,25 @@
-/* Reset margins and ensure full screen height */
-/* REQUIRED for the map to actually show up! */
 @import "leaflet/dist/leaflet.css";
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body, html, #root {
   height: 100vh;
   width: 100vw;
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  overflow: hidden; /* Prevents scrolling on the main dashboard */
+  background: #050505;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  overflow: hidden;
+  color: #e8e8e8;
 }
 
+/* Scrollbar â€” hide in phone screens */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Button reset */
+button { font-family: inherit; }

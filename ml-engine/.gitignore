@@ -1,0 +1,16 @@
+# Ignore Python virtual environments
+ml-engine/venv/
+__pycache__/
+*.pyc
+
+# Ignore Node modules
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Ignore the massive datasets (Keep the code, not the data)
+*.csv
+*.pkl
+
+# Ignore environment variables (Passwords/API Keys)
+.

@@ -10,12 +10,19 @@
 }
 
 body, html, #root {
+<<<<<<< HEAD
   height: 100vh;
   width: 100vw;
   background: #050505;
   font-family: 'DM Sans', system-ui, sans-serif;
   overflow: hidden;
   color: #e8e8e8;
+=======
+  min-height: 100vh;
+  max-width: 100vw;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  overflow: auto; /* Prevents scrolling on the main dashboard */
+>>>>>>> 04f364928a771ee67ed4c5fb56d556b7cf50144a
 }
 
 /* Scrollbar â€” hide in phone screens */

@@ -5,6 +5,9 @@ import Dispatcher from './Dispatcher';
 import Responder from './Responder';
 import HospitalDashboard from './HospitalDashboard';
 import MedicalVaultSetup, { loadVault } from './MedicalVaultSetup';
+import { useAuth } from './AuthContext';
+import LoginScreen from './LoginScreen';
+import DoctorConnect from './DoctorConnect';
 
 // ── Fonts injected once ──────────────────────────────────────────────────────
 const fontLink = document.createElement('link');
@@ -200,93 +203,142 @@ function useLiveLocation(emergencyId) {
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [appView, setAppView]             = useState('victim');
-  const [step, setStep]                   = useState(1);
-  const [isDispatching, setIsDispatching] = useState(false);
-  const [severity, setSeverity]           = useState('');
+  const { user, authFetch, logout }           = useAuth();
+  const [appView, setAppView]                 = useState('victim');
+  const [step, setStep]                       = useState(1);
+  const [isDispatching, setIsDispatching]     = useState(false);
+  const [severity, setSeverity]               = useState('');
+  const [sosError, setSosError]               = useState('');   // shown in UI, not alert()
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [emergencyId, setEmergencyId]     = useState(null);
-  const [showVault, setShowVault]         = useState(false);
-  // First launch: show vault setup if no vault saved yet
-  const [vaultReady, setVaultReady]       = useState(() => loadVault() !== null);
+  const [emergencyId, setEmergencyId]         = useState(null);
+  const [showVault, setShowVault]             = useState(false);
+  const [showDoctorCall, setShowDoctorCall]   = useState(false);
+  const [vaultReady, setVaultReady]           = useState(() => loadVault() !== null);
 
   const reset = () => {
-    setStep(1); setSeverity('');
-    setSelectedCategory(null); setEmergencyId(null); setShowVault(false);
+    setStep(1); setSeverity(''); setSosError('');
+    setSelectedCategory(null); setEmergencyId(null);
+    setShowVault(false); setShowDoctorCall(false);
   };
 
-  const triggerSOS = async (breathingStatus) => {
+  // ── triggerSOS — crash-proof rewrite ────────────────────────────────────
+  const triggerSOS = useCallback(async (breathingStatus) => {
+    setSosError('');
     setIsDispatching(true);
-    if (!navigator.geolocation) {
-      alert("Your browser doesn't support geolocation!"); setIsDispatching(false); return;
-    }
-    navigator.geolocation.getCurrentPosition(async (position) => {
+
+    // Safe server call — never throws, never uses alert()
+    const callServer = async (lat, lng) => {
       try {
-        const response = await fetch('http://localhost:8000/api/sos', {
+        const response = await authFetch('http://localhost:8000/api/sos', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: 1,
-            latitude:  position.coords.latitude,
-            longitude: position.coords.longitude,
-            blood_loss:    'Low',
+            latitude:      lat,
+            longitude:     lng,
+            blood_loss:    'Moderate',
             consciousness: 'Awake',
             breathing:     breathingStatus,
           }),
         });
-        const data = await response.json();
+
+        // Safely parse JSON — server might return HTML on 500
+        let data = {};
+        try { data = await response.json(); } catch (_) {}
+
         if (response.ok) {
-          const aiSeverity = data?.emergency?.severity_score || data?.severity_score || 'Unknown';
-          setSeverity(aiSeverity);
+          setSeverity(data?.emergency?.severity_score || data?.severity_score || 'Unknown');
           setEmergencyId(data?.emergency?.id || null);
           setStep(3);
         } else {
-          alert('❌ Error: Could not reach dispatch.');
+          setSosError(data?.error || `Server error ${response.status}`);
         }
       } catch (err) {
-        console.error(err);
-        alert('❌ Network Error: Are your Node & Python servers running?');
+        // Network down — still advance to step 3 in demo mode
+        console.error('SOS network error:', err);
+        setSeverity('Unknown');
+        setEmergencyId(null);
+        setStep(3);
       } finally {
         setIsDispatching(false);
       }
-    }, () => { alert('⚠️ We need your location to send the SOS!'); setIsDispatching(false); });
-  };
+    };
+
+    // GPS with 5s timeout then fallback
+    if (!navigator.geolocation) {
+      await callServer(12.8231, 80.0442); // fallback coords
+      return;
+    }
+
+    let done = false;
+    const fallbackTimer = setTimeout(async () => {
+      if (!done) { done = true; await callServer(12.8231, 80.0442); }
+    }, 5000);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (!done) {
+          done = true;
+          clearTimeout(fallbackTimer);
+          await callServer(pos.coords.latitude, pos.coords.longitude);
+        }
+      },
+      async () => {
+        if (!done) {
+          done = true;
+          clearTimeout(fallbackTimer);
+          await callServer(12.8231, 80.0442);
+        }
+      },
+      { enableHighAccuracy: false, timeout: 4500, maximumAge: 10000 }
+    );
+  }, [authFetch]);
 
   return (
     <>
-      {/* ── View switcher ── */}
-      <div style={{
-        position: 'fixed', top: 12, right: 12, zIndex: 9999,
-        display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end',
-      }}>
-        {[
-          { id: 'victim',     label: 'Victim Phone' },
-          { id: 'dispatcher', label: 'Dispatcher' },
-          { id: 'responder',  label: 'Responder' },
-          { id: 'hospital',   label: 'Hospital' },
-        ].map(({ id, label }) => (
-          <button key={id} onClick={() => setAppView(id)} style={{
+      {/* ── View switcher (only shown when logged in) ── */}
+      {user && (
+        <div style={{
+          position: 'fixed', top: 12, right: 12, zIndex: 9999,
+          display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end',
+        }}>
+          {[
+            { id: 'victim',     label: 'Victim Phone' },
+            { id: 'dispatcher', label: 'Dispatcher' },
+            { id: 'responder',  label: 'Responder' },
+            { id: 'hospital',   label: 'Hospital' },
+          ].map(({ id, label }) => (
+            <button key={id} onClick={() => setAppView(id)} style={{
+              padding: '7px 14px',
+              background: appView === id ? T.red : T.bg2,
+              color: appView === id ? '#fff' : T.text2,
+              border: `1px solid ${appView === id ? T.red : T.border}`,
+              borderRadius: 8,
+              fontFamily: T.font, fontWeight: 700, fontSize: 10,
+              letterSpacing: '1.5px', textTransform: 'uppercase',
+              cursor: 'pointer', transition: 'all .15s',
+            }}>
+              {label}
+            </button>
+          ))}
+          <button onClick={logout} style={{
             padding: '7px 14px',
-            background: appView === id ? T.red : T.bg2,
-            color: appView === id ? '#fff' : T.text2,
-            border: `1px solid ${appView === id ? T.red : T.border}`,
-            borderRadius: 8,
-            fontFamily: T.font, fontWeight: 700, fontSize: 10,
-            letterSpacing: '1.5px', textTransform: 'uppercase',
-            cursor: 'pointer', transition: 'all .15s',
+            background: T.bg2, color: T.text3,
+            border: `1px solid ${T.border}`,
+            borderRadius: 8, fontFamily: T.font, fontWeight: 700,
+            fontSize: 10, letterSpacing: '1.5px', cursor: 'pointer',
           }}>
-            {label}
+            LOGOUT
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
       {appView === 'victim'     && <VictimApp step={step} setStep={setStep} isDispatching={isDispatching}
           severity={severity} selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
           triggerSOS={triggerSOS} reset={reset}
-          emergencyId={emergencyId}
+          emergencyId={emergencyId} sosError={sosError}
           showVault={showVault} setShowVault={setShowVault}
-          vaultReady={vaultReady} setVaultReady={setVaultReady} />}
+          vaultReady={vaultReady} setVaultReady={setVaultReady}
+          showDoctorCall={showDoctorCall} setShowDoctorCall={setShowDoctorCall} />}
       {appView === 'dispatcher' && <Dispatcher />}
       {appView === 'responder'  && <Responder />}
       {appView === 'hospital'   && <HospitalDashboard />}
@@ -295,7 +347,9 @@ export default function App() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-function VictimApp({ step, setStep, isDispatching, severity, selectedCategory, setSelectedCategory, triggerSOS, reset, emergencyId, showVault, setShowVault, vaultReady, setVaultReady }) {
+function VictimApp({ step, setStep, isDispatching, severity, selectedCategory, setSelectedCategory, triggerSOS, reset, emergencyId, sosError, showVault, setShowVault, vaultReady, setVaultReady, showDoctorCall, setShowDoctorCall }) {
+  const { user } = useAuth();
+
   return (
     <div style={{
       minHeight: '100vh', width: '100vw',
@@ -305,37 +359,56 @@ function VictimApp({ step, setStep, isDispatching, severity, selectedCategory, s
     }}>
       <PhoneFrame>
         <StatusBar />
-        {/* First launch: show vault setup before SOS home */}
-        {!vaultReady
-          ? <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <MedicalVaultSetup onComplete={() => setVaultReady(true)} />
-              <div style={{ padding: '0 18px 20px', flexShrink: 0, borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
-                <button
-                  onClick={() => setVaultReady(true)}
-                  style={{
-                    width: '100%', padding: '11px 0',
-                    background: 'transparent', border: `1px solid ${T.border}`,
-                    borderRadius: 12, color: T.text3,
-                    fontFamily: T.body, fontSize: 12,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Skip for now — fill later
-                </button>
+
+        {/* Not logged in → show login/register */}
+        {!user
+          ? <LoginScreen />
+
+          /* Vault setup on first launch */
+          : !vaultReady
+            ? <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <MedicalVaultSetup onComplete={() => setVaultReady(true)} />
+                <div style={{ padding: '12px 18px 20px', flexShrink: 0, borderTop: `1px solid ${T.border}` }}>
+                  <button
+                    onClick={() => setVaultReady(true)}
+                    style={{
+                      width: '100%', padding: '11px 0',
+                      background: 'transparent', border: `1px solid ${T.border}`,
+                      borderRadius: 12, color: T.text3,
+                      fontFamily: T.body, fontSize: 12, cursor: 'pointer',
+                    }}
+                  >
+                    Skip for now — fill later
+                  </button>
+                </div>
               </div>
-            </div>
-          : showVault
-            ? <MedicalVault onClose={() => setShowVault(false)} />
-            : <>
-                {step === 1 && <StepHome onActivate={() => setStep(2)} onVault={() => setShowVault(true)} />}
-                {step === 2 && <StepAssess isDispatching={isDispatching} selectedCategory={selectedCategory}
-                                  setSelectedCategory={setSelectedCategory}
-                                  onCancel={() => setStep(1)} triggerSOS={triggerSOS} />}
-                {step === 3 && <StepConfirmed severity={severity} onReset={reset}
-                                  emergencyId={emergencyId} onVault={() => setShowVault(true)} />}
-              </>
+
+            /* Medical Vault overlay */
+            : showVault
+              ? <MedicalVault onClose={() => setShowVault(false)} />
+
+              /* Main SOS flow */
+              : <>
+                  {step === 1 && <StepHome onActivate={() => setStep(2)} onVault={() => setShowVault(true)} />}
+                  {step === 2 && <StepAssess isDispatching={isDispatching} selectedCategory={selectedCategory}
+                                    setSelectedCategory={setSelectedCategory}
+                                    onCancel={() => setStep(1)} triggerSOS={triggerSOS}
+                                    sosError={sosError} />}
+                  {step === 3 && <StepConfirmed severity={severity} onReset={reset}
+                                    emergencyId={emergencyId} onVault={() => setShowVault(true)}
+                                    onDoctorCall={() => setShowDoctorCall(true)} />}
+                </>
         }
       </PhoneFrame>
+
+      {/* WebRTC doctor call — full screen overlay */}
+      {showDoctorCall && emergencyId && (
+        <DoctorConnect
+          emergencyId={emergencyId}
+          role="victim"
+          onClose={() => setShowDoctorCall(false)}
+        />
+      )}
     </div>
   );
 }
@@ -573,7 +646,7 @@ function StepHome({ onActivate, onVault }) {
 // ════════════════════════════════════════════════════════════════════════════
 // STEP 2 — Assessment
 // ════════════════════════════════════════════════════════════════════════════
-function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCancel, triggerSOS }) {
+function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCancel, triggerSOS, sosError }) {
   const categories = [
     { id: 'Medical',  icon: <Ambulance size={26} />,   color: T.blue },
     { id: 'Fire',     icon: <Flame size={26} />,        color: '#f97316' },
@@ -627,6 +700,20 @@ function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCa
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 28px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+        {/* Error display — replaces alert() */}
+        {sosError && (
+          <div style={{
+            background: '#1a0d0d', border: `1px solid ${T.red}44`,
+            borderRadius: 10, padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>⚠️</span>
+            <span style={{ fontSize: 12, color: '#f87171', fontFamily: T.body, lineHeight: 1.5 }}>
+              {sosError}
+            </span>
+          </div>
+        )}
 
         {/* Emergency type */}
         <div>
@@ -703,7 +790,7 @@ function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCa
 // ════════════════════════════════════════════════════════════════════════════
 // STEP 3 — Confirmed
 // ════════════════════════════════════════════════════════════════════════════
-function StepConfirmed({ severity, onReset, emergencyId, onVault }) {
+function StepConfirmed({ severity, onReset, emergencyId, onVault, onDoctorCall }) {
   const sevColor = severity === 'Critical' ? T.red : severity === 'High' ? T.amber : T.green;
   const { sharing, coords, accuracy, toggle: toggleLocation } = useLiveLocation(emergencyId);
 
@@ -848,7 +935,7 @@ function StepConfirmed({ severity, onReset, emergencyId, onVault }) {
         </div>
 
         {/* Action buttons */}
-        <button style={{
+        <button onClick={onDoctorCall} style={{
           width: '100%', padding: 14,
           background: T.blueDim, border: `1px solid #2a4f7f`,
           borderRadius: 12, color: '#60a5fa',

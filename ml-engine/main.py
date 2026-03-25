@@ -14,49 +14,57 @@ except:
 
 # 2. Define what the incoming Emergency Request looks like
 class EmergencyRequest(BaseModel):
-    age_group: str          # Pediatric, Adult, Geriatric
-    is_diabetic: int        # 0 or 1
-    cardiac_history: int    # 0 or 1
+    age_group: str          
+    is_diabetic: int        
+    cardiac_history: int    
     chest_pain_indicator: int
-    consciousness: str      # Awake, Altered, Unconscious
-    breathing: str          # Normal, Labored, Absent
-    blood_loss: str         # None, Moderate, Severe
-    incident_type: str      # RTA, Cardiac, Fall, Medical, Fire
-    victim_count: str       # Single, Multiple, Mass
-    scene_hazard: int       # 0 or 1
+    consciousness: str      
+    breathing: str          
+    blood_loss: str         
+    incident_type: str      
+    victim_count: str       
+    scene_hazard: int       
 
-# 3. The Mapping Dictionary (Must match train.py exactly)
+# 3. The Mapping Dictionary (Converted to lowercase to prevent matching errors!)
 feature_mapping = {
-    'age_group': {'Pediatric': 0, 'Adult': 1, 'Geriatric': 2},
-    'consciousness': {'Awake': 0, 'Altered': 1, 'Unconscious': 2},
-    'breathing': {'Normal': 0, 'Labored': 1, 'Absent': 2},
-    'blood_loss': {'None': 0, 'Moderate': 1, 'Severe': 2},
-    'incident_type': {'RTA': 0, 'Cardiac': 1, 'Fall': 2, 'Medical': 3, 'Fire': 4},
-    'victim_count': {'Single': 0, 'Multiple': 1, 'Mass': 2}
+    'age_group': {'pediatric': 0, 'adult': 1, 'geriatric': 2},
+    'consciousness': {'awake': 0, 'altered': 1, 'unconscious': 2},
+    'breathing': {'normal': 0, 'labored': 1, 'absent': 2},
+    'blood_loss': {'none': 0, 'moderate': 1, 'severe': 2},
+    'incident_type': {'rta': 0, 'cardiac': 1, 'fall': 2, 'medical': 3, 'fire': 4},
+    'victim_count': {'single': 0, 'multiple': 1, 'mass': 2}
 }
 
 @app.post("/predict")
 async def predict_triage(request: EmergencyRequest):
     try:
-        # --- A. Feature Engineering (Calculating Super Columns on the fly) ---
-        age_score = 1 if request.age_group in ['Pediatric', 'Geriatric'] else 0
+        # Force all incoming text to lowercase so it never fails
+        age = request.age_group.lower()
+        consc = request.consciousness.lower()
+        breath = request.breathing.lower()
+        blood = request.blood_loss.lower()
+        incident = request.incident_type.lower()
+        victim = request.victim_count.lower()
+
+        # --- A. Feature Engineering ---
+        age_score = 1 if age in ['pediatric', 'geriatric'] else 0
         vulnerability_index = age_score + request.is_diabetic + (request.cardiac_history * 2)
         
-        trauma_triad = 1 if (request.blood_loss == 'Severe' and request.breathing in ['Labored', 'Absent']) else 0
+        trauma_triad = 1 if (blood == 'severe' and breath in ['labored', 'absent']) else 0
         
-        scene_chaos = 1 if (request.scene_hazard == 1 or request.victim_count in ['Multiple', 'Mass']) else 0
+        scene_chaos = 1 if (request.scene_hazard == 1 or victim in ['multiple', 'mass']) else 0
 
         # --- B. Convert text inputs to numbers ---
         input_data = {
-            'age_group': feature_mapping['age_group'][request.age_group],
+            'age_group': feature_mapping['age_group'][age],
             'is_diabetic': request.is_diabetic,
             'cardiac_history': request.cardiac_history,
             'chest_pain_indicator': request.chest_pain_indicator,
-            'consciousness': feature_mapping['consciousness'][request.consciousness],
-            'breathing': feature_mapping['breathing'][request.breathing],
-            'blood_loss': feature_mapping['blood_loss'][request.blood_loss],
-            'incident_type': feature_mapping['incident_type'][request.incident_type],
-            'victim_count': feature_mapping['victim_count'][request.victim_count],
+            'consciousness': feature_mapping['consciousness'][consc],
+            'breathing': feature_mapping['breathing'][breath],
+            'blood_loss': feature_mapping['blood_loss'][blood],
+            'incident_type': feature_mapping['incident_type'][incident],
+            'victim_count': feature_mapping['victim_count'][victim],
             'scene_hazard': request.scene_hazard,
             'vulnerability_index': vulnerability_index,
             'trauma_triad': trauma_triad,
@@ -68,12 +76,13 @@ async def predict_triage(request: EmergencyRequest):
         prediction = model.predict(df)[0]
         
         return {
-            "severity": prediction,
-            "vulnerability_score": vulnerability_index,
+            "severity_score": str(prediction), 
+            "vulnerability_score": int(vulnerability_index),
             "chaos_flag": bool(scene_chaos)
         }
 
     except Exception as e:
+        print("❌ ML Engine Error:", str(e)) # This prints exact errors to your terminal!
         raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":

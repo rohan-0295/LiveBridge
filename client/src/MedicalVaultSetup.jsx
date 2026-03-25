@@ -3,6 +3,7 @@ import {
   ChevronRight, ChevronLeft, Plus, Trash2, Check,
   Lock, Shield, Clock, User, Phone, Heart, Pill,
 } from 'lucide-react';
+import { useAuth } from './AuthContext';
 
 // ── Design tokens (same as App.jsx) ─────────────────────────────────────────
 const T = {
@@ -22,7 +23,7 @@ const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const DEFAULT_VAULT = {
   name: '', age: '', gender: 'Male', bloodType: 'A+', phone: '',
   allergies: [], conditions: [],
-  medications: [],            // [{ name, dose }]
+  medications: [],
   doctorName: '', hospital: '',
   contacts: [{ name: '', rel: '', phone: '' }],
 };
@@ -39,25 +40,13 @@ function saveVault(vault) {
   localStorage.setItem('lb_medical_vault', JSON.stringify(vault));
 }
 
-// ── Save to backend ──────────────────────────────────────────────────────────
-async function saveVaultToServer(vault) {
-  try {
-    await fetch('http://localhost:8000/api/vault', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ user_id: 1, ...vault }),
-    });
-  } catch (err) {
-    console.warn('Server save failed (offline?), vault kept in localStorage', err);
-  }
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 // Main component
 // Props:
 //   onComplete(vault) — called when user finishes setup
 // ════════════════════════════════════════════════════════════════════════════
 export default function MedicalVaultSetup({ onComplete }) {
+  const { authFetch } = useAuth();
   const [step,  setStep]  = useState(1);       // 1 | 2 | 3 | 4 (done)
   const [vault, setVault] = useState(DEFAULT_VAULT);
   const [saving, setSaving] = useState(false);
@@ -69,10 +58,17 @@ export default function MedicalVaultSetup({ onComplete }) {
 
   const handleSave = async () => {
     setSaving(true);
-    saveVault(vault);              // always persist locally
-    await saveVaultToServer(vault); // best-effort server sync
+    saveVault(vault);           // always persist locally first
+    try {
+      await authFetch('http://localhost:8000/api/vault', {
+        method: 'POST',
+        body:   JSON.stringify(vault),
+      });
+    } catch (err) {
+      console.warn('Server save failed (offline?), vault kept in localStorage', err);
+    }
     setSaving(false);
-    setStep(4);                    // show confirmation
+    setStep(4);
   };
 
   // ── Step 1 valid if name + phone filled ─────────────────────────────────

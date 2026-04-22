@@ -34,7 +34,7 @@ const pool = new Pool({
   port:     process.env.DB_PORT,
   database: process.env.DB_NAME,
 });
-
+ 
 pool.connect()
   .then(() => console.log('✅ Connected to PostgreSQL (LiveBridge DB)'))
   .catch(err => console.error('❌ DB connection error:', err.stack));

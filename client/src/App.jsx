@@ -8,6 +8,10 @@ import MedicalVaultSetup, { loadVault } from './MedicalVaultSetup';
 import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
 import DoctorConnect from './DoctorConnect';
+import VictimChat from './VictimChat';
+
+// Inside StepConfirmed, add a state toggle:
+
 
 // ── Fonts injected once ──────────────────────────────────────────────────────
 const fontLink = document.createElement('link');
@@ -647,6 +651,7 @@ function StepHome({ onActivate, onVault }) {
 // STEP 2 — Assessment
 // ════════════════════════════════════════════════════════════════════════════
 function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCancel, triggerSOS, sosError }) {
+  const [showChat, setShowChat] = useState(false);
   const categories = [
     { id: 'Medical',  icon: <Ambulance size={26} />,   color: T.blue },
     { id: 'Fire',     icon: <Flame size={26} />,        color: '#f97316' },
@@ -782,6 +787,33 @@ function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCa
             Your medical data and live location will be shared with the responding paramedic unit.
           </p>
         </div>
+       {/* 🚀 THE AI CHAT BUTTON & WINDOW */}
+  {/* 🚀 THE AI CHAT BUTTON & WINDOW */}
+        {showChat ? (
+          <div style={{ 
+            height: 400, 
+            flexShrink: 0,  /* <--- THE MAGIC FIX: Prevents squishing! */
+            marginTop: 16, 
+            borderRadius: 14, 
+            border: `1px solid ${T.border || '#2a2a2a'}`, 
+            overflow: 'hidden', 
+            display: 'flex', 
+            flexDirection: 'column' 
+          }}>
+            <VictimChat emergencyId="Pending" severity="Unknown" onClose={() => setShowChat(false)} />
+          </div>
+        ) : (
+          <button onClick={() => setShowChat(true)} style={{
+            width: '100%', padding: 14, marginTop: 16,
+            background: T.blue, border: `1px solid ${T.blueDim}`,
+            borderRadius: 12, color: '#fff',
+            fontFamily: T.font, fontWeight: 700, fontSize: 13, letterSpacing: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            cursor: 'pointer',
+          }}>
+            TALK TO AI OPERATOR
+          </button>
+        )}
       </div>
     </div>
   );
@@ -793,6 +825,9 @@ function StepAssess({ isDispatching, selectedCategory, setSelectedCategory, onCa
 function StepConfirmed({ severity, onReset, emergencyId, onVault, onDoctorCall }) {
   const sevColor = severity === 'Critical' ? T.red : severity === 'High' ? T.amber : T.green;
   const { sharing, coords, accuracy, toggle: toggleLocation } = useLiveLocation(emergencyId);
+  const [showChat, setShowChat] = useState(false);
+
+// Replace the doctor button or add alongside it:
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'lb-fadein .3s ease' }}>
@@ -933,6 +968,12 @@ function StepConfirmed({ severity, onReset, emergencyId, onVault, onDoctorCall }
             </div>
           ))}
         </div>
+
+        {showChat
+        ? <VictimChat emergencyId={emergencyId} severity={severity} onClose={() => setShowChat(false)} />
+        : <button onClick={() => setShowChat(true)}>TALK TO AI OPERATOR</button>
+        }
+
 
         {/* Action buttons */}
         <button onClick={onDoctorCall} style={{

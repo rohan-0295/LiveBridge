@@ -12,7 +12,7 @@ export function NearbyHospitals({ latitude, longitude }) {
     setLoading(true);
     
     fetch(`http://localhost:8000/api/hospitals/nearby?lat=${latitude}&lng=${longitude}`)
-      .then(res => res.json())
+      .then(res => res.json()) 
       .then(data => {
         setHospitals(data);
         setLoading(false);

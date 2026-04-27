@@ -3,7 +3,7 @@
 // Connects to POST /emergency-chat on the FastAPI ML engine (port 8001)
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Mic, Bot, User, AlertTriangle, Loader } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, Loader, X } from 'lucide-react';
 
 // ── Design tokens (matches App.jsx) ──────────────────────────────────────
 const T = {
@@ -69,7 +69,7 @@ export default function VictimChat({ emergencyId, severity = 'Unknown', onClose 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // ── Send message ─────────────────────────────────────────────────────
+  // ── Send message — fires TWO simultaneous API calls ─────────────────
   const sendMessage = useCallback(async (text) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
@@ -83,36 +83,80 @@ export default function VictimChat({ emergencyId, severity = 'Unknown', onClose 
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8001/emergency-chat', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_message:   trimmed,
-          severity_score: severity || 'Unknown',
-        }),
-      });
+      // ── Fire BOTH calls simultaneously ────────────────────────────────
+      const [chatRes, triageRes] = await Promise.all([
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Server error ${res.status}`);
+        // CALL 1: Groq AI Emergency Operator
+        fetch('http://localhost:8001/emergency-chat', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_message:   trimmed,
+            severity_score: severity || 'Unknown',
+          }),
+        }),
+
+        // CALL 2: HuggingFace Zero-Shot ML Triage
+        fetch('http://localhost:8001/predict-text', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: trimmed }),
+        }).catch(err => {
+          // Non-fatal — ML triage failing should NOT break the chat
+          console.warn('ML triage call failed (non-fatal):', err.message);
+          return null;
+        }),
+
+      ]);
+
+      // ── Process ML triage result ──────────────────────────────────────
+      if (triageRes && triageRes.ok) {
+        const triageData = await triageRes.json().catch(() => null);
+        if (triageData) {
+          const { severity_score, confidence } = triageData;
+          console.log(
+            `%c🧠 Dynamic ML Triage Update: ${(severity_score || 'Unknown').toUpperCase()} (${confidence}%)`,
+            'color: #f59e0b; font-weight: bold;'
+          );
+
+          // ── TODO: Persist triage update to database ─────────────────
+          // If you want to update the emergency record in Postgres, do it here:
+          //
+          // if (emergencyId && emergencyId !== 'Pending') {
+          //   await fetch(`http://localhost:8000/api/emergencies/${emergencyId}/triage`, {
+          //     method:  'PATCH',
+          //     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          //     body:    JSON.stringify({ severity_score, confidence }),
+          //   });
+          // }
+          //
+          // You can also lift this up via a prop callback:
+          // onTriageUpdate?.({ severity_score, confidence });
+        }
       }
 
-      const data = await res.json();
+      // ── Process Groq chat response ────────────────────────────────────
+      if (!chatRes.ok) {
+        const err = await chatRes.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error ${chatRes.status}`);
+      }
+
+      const chatData = await chatRes.json();
       const aiMsg = {
         id:     Date.now() + 1,
         sender: 'ai',
-        text:   data.response,
+        text:   chatData.response,
         ts:     new Date(),
-        tokens: data.tokens_used,
+        tokens: chatData.tokens_used,
       };
       setMessages(prev => [...prev, aiMsg]);
 
     } catch (err) {
       const errMsg = {
-        id:     Date.now() + 1,
-        sender: 'ai',
-        text:   'I\'m having trouble connecting right now, but help is already on the way. Stay calm and stay on the line.',
-        ts:     new Date(),
+        id:      Date.now() + 1,
+        sender:  'ai',
+        text:    "I'm having trouble connecting right now, but help is already on the way. Stay calm and stay on the line.",
+        ts:      new Date(),
         isError: true,
       };
       setMessages(prev => [...prev, errMsg]);
@@ -121,7 +165,7 @@ export default function VictimChat({ emergencyId, severity = 'Unknown', onClose 
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isLoading, severity]);
+  }, [isLoading, severity, emergencyId]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -186,21 +230,42 @@ export default function VictimChat({ emergencyId, severity = 'Unknown', onClose 
             </div>
           </div>
 
-          {/* Severity badge */}
-          <div style={{
-            background: sevStyle.bg,
-            border: `1px solid ${sevStyle.border}`,
-            borderRadius: 8,
-            padding: '5px 10px',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <AlertTriangle size={11} color={sevStyle.text} />
-            <span style={{
-              fontFamily: T.font, fontWeight: 700, fontSize: 10,
-              letterSpacing: 1, color: sevStyle.text,
+          {/* Severity badge + Close button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              background: sevStyle.bg,
+              border: `1px solid ${sevStyle.border}`,
+              borderRadius: 8,
+              padding: '5px 10px',
+              display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              {(severity || 'UNKNOWN').toUpperCase()}
-            </span>
+              <AlertTriangle size={11} color={sevStyle.text} />
+              <span style={{
+                fontFamily: T.font, fontWeight: 700, fontSize: 10,
+                letterSpacing: 1, color: sevStyle.text,
+              }}>
+                {(severity || 'UNKNOWN').toUpperCase()}
+              </span>
+            </div>
+            {/* ── Close button ── */}
+            <button
+              onClick={onClose}
+              title="Close chat"
+              style={{
+                width: 30, height: 30,
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,.07)',
+                border: `1px solid rgba(255,255,255,.1)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: T.text2,
+                transition: 'all .15s',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.redDim; e.currentTarget.style.borderColor = T.red; e.currentTarget.style.color = T.red; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.07)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = T.text2; }}
+            >
+              <X size={14} />
+            </button>
           </div>
         </div>
 
@@ -221,9 +286,14 @@ export default function VictimChat({ emergencyId, severity = 'Unknown', onClose 
       </div>
 
       {/* ── Messages ────────────────────────────────────────────────── */}
+      {/* FIX Part 1 Bug 3: minHeight:0 is CRITICAL — without it a flex child
+          cannot shrink below its content size, so messages overflow behind the
+          sticky header. This one line resolves the CSS overlap entirely.        */}
       <div style={{
-        flex: 1, overflowY: 'auto', padding: '16px 16px 8px',
+        flex: 1, overflowY: 'auto',
+        padding: '12px 16px 8px',
         display: 'flex', flexDirection: 'column', gap: 12,
+        minHeight: 0,
         scrollbarWidth: 'thin',
         scrollbarColor: `${T.border} transparent`,
       }}>

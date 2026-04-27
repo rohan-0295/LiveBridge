@@ -37,28 +37,85 @@ export default function HospitalDashboard() {
     high:     emergencies.filter(e => e.severity_score === 'High').length,
   };
 
+// ── 1. The Socket.io Connection & Event Listeners ──
   useEffect(() => {
     const socket = io('http://localhost:8000');
     socketRef.current = socket;
-    socket.on('connect',    () => setConnected(true));
+
+    socket.on('connect', () => {
+      setConnected(true);
+      // CRUCIAL: Join the hospital room so the backend can send geofenced vault data
+      socket.emit('hospital_join', { hospital: 'apollo_chennai' }); 
+    });
+    
     socket.on('disconnect', () => setConnected(false));
-    socket.on('new_emergency', (e) => setEmergencies(prev => [e, ...prev]));
+    
+    // When a new SOS triggers, the backend already attaches the vault here
+    socket.on('new_emergency', (e) => {
+      setEmergencies(prev => [e, ...prev]);
+    });
+
+    // Listen for Dispatcher routing the patient to this hospital
+    socket.on('inbound_patient', (payload) => {
+      setEmergencies(prev => prev.map(em => 
+        em.id === payload.emergency_id ? { ...em, vault: payload.vault } : em
+      ));
+    });
+
+    // Listen for the Geofencing Event (Ambulance within 500m)
+    socket.on('ambulance_approaching', (payload) => {
+      setEmergencies(prev => prev.map(em => 
+        em.id === payload.emergency_id ? { ...em, vault: payload.vault } : em
+      ));
+    });
+
     socket.on('emergency_resolved', ({ id }) => {
       setEmergencies(prev => {
         const found = prev.find(e => e.id === id);
         if (found) setResolved(r => [{ ...found }, ...r]);
         return prev.filter(e => e.id !== id);
       });
-      if (selected?.id === id) setSelected(null);
+      // Clear selection if the resolved emergency is currently open
+      setSelected(curr => curr?.id === id ? null : curr);
     });
+
     return () => socket.disconnect();
-  }, [selected]);
+  }, []); // Empty dependency array ensures socket connects only once!
 
+  // ── 2. The Medical Vault Loader ──
   useEffect(() => {
-    fetch('http://localhost:8000/api/emergencies')
-      .then(r => r.json()).then(setEmergencies).catch(() => {});
-  }, []);
+    if (!selected) { 
+      setVault(null); 
+      return; 
+    }
 
+    // FAST PATH: If the vault was already delivered via Socket.io, use it immediately!
+    if (selected.vault) {
+      setVault(selected.vault);
+      setVaultLoading(false);
+      return;
+    }
+
+    // FALLBACK PATH: Manually fetch if we don't have it in memory
+    if (!selected.user_id) {
+      setVault(null);
+      return;
+    }
+
+    setVaultLoading(true);
+    fetch(`http://localhost:8000/api/vault/${selected.user_id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        // Ensure the returned data actually contains vault info before setting it
+        if (data && data.blood_type) {
+          setVault(data);
+        } else {
+          setVault(null);
+        }
+      })
+      .catch(() => setVault(null))
+      .finally(() => setVaultLoading(false));
+  }, [selected]);
   useEffect(() => {
     if (!selected) { setVault(null); return; }
     setVaultLoading(true);

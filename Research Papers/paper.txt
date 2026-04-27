@@ -1,0 +1,100 @@
+Discussion
+References
+Abbreviations
+Copyright
+Related Articles
+Comment in: https://ai.jmir.org/2025/1/e67321/
+Comment in: https://ai.jmir.org/2025/1/e73342/
+Abstract
+Background:
+Predicting hospitalization from nurse triage notes has the potential to augment care. However, there needs to be careful considerations for which models to choose for this goal. Specifically, health systems will have varying degrees of computational infrastructure available and budget constraints.
+
+Objective:
+To this end, we compared the performance of the deep learning, Bidirectional Encoder Representations from Transformers (BERT)–based model, Bio-Clinical-BERT, with a bag-of-words (BOW) logistic regression (LR) model incorporating term frequency–inverse document frequency (TF-IDF). These choices represent different levels of computational requirements.
+
+Methods:
+A retrospective analysis was conducted using data from 1,391,988 patients who visited emergency departments in the Mount Sinai Health System spanning from 2017 to 2022. The models were trained on 4 hospitals’ data and externally validated on a fifth hospital’s data.
+
+Results:
+The Bio-Clinical-BERT model achieved higher areas under the receiver operating characteristic curve (0.82, 0.84, and 0.85) compared to the BOW-LR-TF-IDF model (0.81, 0.83, and 0.84) across training sets of 10,000; 100,000; and ~1,000,000 patients, respectively. Notably, both models proved effective at using triage notes for prediction, despite the modest performance gap.
+
+Conclusions:
+Our findings suggest that simpler machine learning models such as BOW-LR-TF-IDF could serve adequately in resource-limited settings. Given the potential implications for patient care and hospital resource management, further exploration of alternative models and techniques is warranted to enhance predictive performance in this critical domain.
+
+International Registered Report Identifier (IRRID):
+RR2-10.1101/2023.08.07.23293699
+
+JMIR AI 2024;3:e52190
+
+doi:10.2196/52190
+
+Keywords
+Bio-Clinical-BERT; term frequency–inverse document frequency (2); TF-IDF; health informatics (202); patient care (126); hospital resource management (4); care (98); resource management (8); management (145); language model (84); machine learning (2049); hospitalization (103); deep learning (529); logistic regression (78); retrospective analysis (15); training (249); large language model (327) 
+
+
+Introduction
+Efficient and effective patient triage within the emergency department (ED) plays a pivotal role in enhancing treatment outcomes and optimizing care delivery [1-3]. This process involves rapidly identifying patients who require immediate hospitalization upon their arrival. One of the resources for making these predictions are nurse triage notes, which provide a wealth of in-depth information about the patient’s condition at presentation [4,5].
+
+In the field of health care, machine learning has opened up new avenues for potential improvement in such complex classification tasks, thereby augmenting clinical decision-making processes [6,7]. The recent developments in deep learning and natural language processing (NLP) techniques have further broadened this potential, bringing a new realm of possibilities for enhancing medical decision-making capabilities.
+
+Among these advanced algorithms is the Bidirectional Encoder Representations from Transformers (BERT) model [8]. BERT has shown excellent performance in numerous NLP tasks [9] and has inspired the development of more specialized versions tailored to particular fields, such as the Bio-Clinical-BERT model, which was designed to cater to the biomedical field [10].
+
+The focus of this study is to delve into the potential of a fine-tuned Bio-Clinical-BERT model and compare it against a simpler, robust, and more traditional approach, mainly, the bag-of-words (BOW) logistic regression (LR) model complemented by the term frequency–inverse document frequency (TF-IDF) method. We also evaluated other approaches including the extreme gradient boosting (XGBoost) classifier and Word-2-Vec (W2V) embedding with bidirectional long short-term memory (Bi-LSTM) network. The primary objective of our research is to gauge the efficacy of these 2 methods in predicting hospital admissions using nurse triage notes.
+
+While it is true that Bio-Clinical-BERT could potentially offer improved accuracy in its predictions, it should be noted that it also requires a substantial investment in terms of computational resources. It necessitates the use of specialized hardware and demands a certain level of software expertise to operate effectively. On the other hand, the LR model paired with the TF-IDF method is more resource efficient and enjoys wide acceptance in the field of text classification due to its simplicity and effectiveness.
+
+We hypothesized that the Bio-Clinical-BERT model may surpass the performance of the BOW-LR model combined with the TF-IDF approach in the task of predicting triage outcomes. However, we also speculated that the incremental gains in performance might not necessarily justify the additional demands imposed by the large deep learning model in terms of computational resources and technical know-how. To test this hypothesis, we have undertaken an extensive study using over 1 million nurse triage notes collected from a large health system.
+
+The fundamental contribution of this paper is a comparison between these techniques for predicting hospital admission, which reflect different levels of computational requirements and cost implications. Our comparison not only looks at the accuracy of these models but also weighs the trade-offs between predictive accuracy and computational efficiency, a consideration that is often overlooked but is of prime importance in real-world settings when implementing models. Specifically, health systems may be able to use insights from this study to make informed decisions on which methodology may be right for their circumstances, with a clearer understanding of the limitations of each. Our aim is to equip health care practitioners, researchers, and decision makers with insights that could potentially aid in enhancing hospital resource management and improve the quality of patient care.
+
+
+Methods
+Data Sources and Study Design
+For the construction and testing of our models, we used an extensive dataset from the Mount Sinai Health System (MSHS). This is a diverse health care provider based in New York City. In this study, the dataset included ED records spanning a 5-year period from 2017 to 2022. This dataset was gathered from 5 different MSHS hospitals, covering a broad range of population groups and diverse urban health settings.
+
+These 5 participating hospitals provided a rich source of data for our study, representing different communities in New York City. The hospitals include Mount Sinai Hospital, a health care institution located in East Harlem, Manhattan; Mount Sinai Morningside, situated in Morningside Heights, Manhattan; Mount Sinai West, operating in Midtown West, Manhattan; Mount Sinai Brooklyn, a community-focused health facility located in Midwood, Brooklyn; and Mount Sinai Queens (MSQ), based in Astoria, Queens. The dataset used for our study was compiled using the Epic Electronic Health Records software, a tool that aids in efficient data collection, management, and analysis. The dataset was made available by the diligent work of the Mount Sinai Hospital Clinical Data Science team.
+
+Model Development and Evaluation
+In the development and testing of our models, we leveraged data from 4 hospitals for training, validation, and hyperparameter tuning processes. We elected to use a distinct dataset from MSQ for external testing to ensure our model’s generalizability.
+
+The internal training and validation cohort underwent a procedure involving 5-fold cross-validation. Each fold contained 10,000 records, which were used for hyperparameter tuning. For the external dataset, we experimented with training sets of varying sizes: 10,000; 100,000; and roughly 1,000,000 patients, which represent the complete 4-hospital cohort. Subsequently, testing was carried out on 20% of these cohorts’ sizes, taken from the MSQ hospital cohort.
+
+Our study involved several models: Bio-Clinical-BERT and BOW-LR models using TF-IDF features. For further subanalyses using different machine and deep learning models, we also evaluated XGBoost with BOW and Bi-LSTM with a W2V pretrained embedding layer derived from bioclinical data (BioWordVec_PubMed_MIMICIII_d200).
+
+As a final subanalysis experiment, for the BERT model, we also experimented with up-sampling of the minority class to ensure balanced data representation, enhancing the stability and accuracy of our model predictions.
+
+These models were used to predict hospitalization outcomes from nurse triage notes. For Bio-Clinical-BERT, we adhered to text preprocessing and tokenization guidelines as outlined on the Hugging Face website [11].
+
+For BOW-XGBoost, we evaluated 3 different numbers of estimators. Other XGBoost hyperparameters were set to default values, including a learning rate of 0.3, maximum depth of 6, and minimum child weight of 1.
+
+For W2V-Bi-LSTM, the network is comprised of a Bi-LSTM layer (256 hidden units), preceded by a pretrained embedding 200-dimensions W2V layer, with a fully connected layer followed by a sigmoid activation function.
+
+Further details on hyperparameter selection are elucidated in the Hyperparameter Tuning Results section. For BOW-LR-TF-IDF, we followed a similar methodology outlined in our previous publication [12], covering both text preprocessing and hyperparameter selection processes.
+
+BERT is a model designed for NLP tasks. It learns from the context of both preceding and following words, making it “bidirectional.” This model is pretrained on large corpora and can be fine-tuned for specific tasks.
+
+The BOW model is a simple technique in NLP. It represents text data by counting the frequency of each word, disregarding the order in which they appear. Each unique word forms a feature, and the frequency of the word represents the value of that feature. However, this method can overlook context and semantics due to its simplicity.
+
+TF-IDF is a numerical statistic that reflects how important a word is to a document in a collection. It is a combination of 2 metrics: term frequency, which is the number of times a word appears in a document, and inverse document frequency, which diminishes the weight of common words and amplifies the weight of rare words across the entire dataset. This helps in reducing the impact of frequently used words and highlights more meaningful terms.
+
+XGBoost is an advanced gradient boosting framework known for its efficiency and performance in structured data classification and regression. It builds multiple decision trees sequentially to correct previous errors, excelling in handling diverse data types and preventing overfitting.
+
+Bi-LSTM is an artificial neural network that processes data in both directions to capture past and future context. This enhances its sequence understanding, making it suitable for text classification, sentiment analysis, and machine translation.
+
+Study Population
+The demographic for this study included adult patients aged 18 years and older. These were patients who made ED visits within the specified 5-year period from 2017 to 2022 across the 5 participating MSHS hospitals.
+
+Outcome Definition
+The primary outcome for our study was to ascertain our models’ effectiveness in predicting hospitalization. This prediction was based on 2 main types of data: tabular electronic health records and nurse triage notes.
+
+Model Evaluation and Comparison
+To assess the performance of our models, we used various metrics such as area under the receiver operating characteristic curve (AUC), sensitivity, specificity, and precision. These metrics allowed us to thoroughly evaluate the Bio-Clinical-BERT [10] and BOW-LR models with TF-IDF features, as well as compare their capabilities in predicting hospitalization from nurse triage notes.
+
+Ethical Considerations
+This study, being retrospective in nature, was reviewed and approved by an ethical institutional review board committee from the MSHS (protocol: STUDY-18-00573). The institutional review board committee deemed that due to the retrospective nature of the study, the requirement for informed consent was waived.
+
+Statistical Analysis
+Our statistical analyses were conducted using Python (version 3.9.12; Python Software Foundation). We presented continuous variables as median (IQR) and categorical variables as percentages for better interpretability. To identify words linked to hospital admission within nurse triage notes, we calculated the odds ratio (OR) and mutual information (MI) [12]. Statistical tests such as the chi-square test and 2-tailed Student t test were used for comparing categorical and continuous variables, respectively. A P value <.05 was considered statistically significant. For evaluating our models, receiver operating characteristic (ROC) curves were plotted, and metrics including AUC, sensitivity (recall), specificity, and positive predictive value (precision) were derived.
+
+Technical Architecture
+The technical experiments involved in this study were conducted within a controlled hospital infrastructure that used an On-Premises Centos Linux environment in conjunction with Azure Cloud infrastructure. For the BOW-TF-IDF experiments, we elected to use the Centos Linux OS. In contrast, the BERT experiment was conducted using a Standard_NC6 GPU instance on Azure Cloud. This instance came with one 16-GB GPU and 6 vCPUs and incurred a cost of approximately US $80 during the training phase. Figure 1 offers a detailed depiction of the fundamental technical architecture used for training the BERT and LR-TF-IDF models, across multiple patient datasets.

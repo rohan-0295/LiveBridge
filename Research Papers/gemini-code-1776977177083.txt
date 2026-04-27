@@ -1,0 +1,62 @@
+====================================================================
+PROJECT CONTEXT FOR ACADEMIC REPORT GENERATION
+Project Name: LiveBridge - Next-Generation Real-Time Emergency Response Ecosystem
+Developer: Rohan Shaw (B.Tech Computer Science and Engineering, Data Science)
+Institution: SRM Institute of Science and Technology
+Domain: Emergency Medical Services (EMS), IoT Telemetry, AI Triage, Spatial Computing
+====================================================================
+
+1. EXECUTIVE SUMMARY & PROBLEM IT SOLVES
+Traditional 911/EMS dispatch systems are reactive, voice-based, and plagued by high latency. They suffer from "Information Asymmetry" (paramedics arrive blind without patient history), "Triage Bottlenecks" (dispatchers overwhelmed during mass casualties), and "Blind Handoffs" (hospitals receive critical patients with no prior warning or data). 
+
+LiveBridge solves this by creating a real-time, event-driven data pipeline. It leverages WebRTC, Spatial Databases (PostGIS), and Zero-Shot NLP Machine Learning to instantly triage victims, track ambulances live, and push encrypted medical history (Medical Vaults) to destination hospitals before the ambulance even arrives. It complies with modern data privacy standards by unlocking medical data only during active SOS events.
+
+2. TECHNOLOGY STACK & ARCHITECTURE
+- Frontend: React.js (Vite), CSS-in-JS (Dark mode UI for low eye-strain), Leaflet.js (for map rendering), and Socket.io-client.
+- Backend Core: Node.js, Express.js.
+- Real-Time Engine: Socket.io for low-latency bidirectional telemetry (GPS tracking) and WebRTC signaling (live video/audio coordination).
+- Database: PostgreSQL equipped with the PostGIS extension. Uses spatial queries (ST_MakePoint, ST_SetSRID, ST_X, ST_Y) to manage geographic data and coordinate mapping.
+- Authentication: JWT (JSON Web Tokens) with bcryptjs password hashing and an OTP-based password recovery system.
+- ML Microservice (AI Triage): Python, FastAPI, Uvicorn. Operates on a separate port (8001).
+- AI Models Used: 
+   1. Hugging Face 'facebook/bart-large-mnli' (Zero-Shot NLP Classification) for dynamically assigning severity scores (Critical, High, Medium, Low) based on unstructured victim symptoms.
+   2. Groq API ('llama-3.1-8b-instant') powering an AI 911 Operator that chats with the victim to provide calm, immediate first-aid instructions without diagnosing.
+
+3. CORE MODULES & DEEP FUNCTIONALITY
+
+A. Victim Interface & SOS Trigger
+- Features a one-tap SOS button that captures location, blood loss, consciousness, and breathing.
+- Dual-API Architecture: Upon SOS, the frontend simultaneously hits the Python ML Engine for zero-shot triage scoring AND the Groq AI for an interactive emergency chat.
+- Live Location: Continuously emits `location_update` via Socket.io.
+
+B. Secure Medical Vault
+- A centralized, encrypted PostgreSQL table (`medical_vaults`) storing users' blood type, severe allergies, existing conditions, and emergency contacts.
+- Uses strict PostgreSQL Upsert logic (`ON CONFLICT (user_id) DO UPDATE`).
+- Privacy-First: This data remains locked and is only transmitted to Paramedics and Hospitals when an SOS is actively triggered.
+
+C. Dispatcher Command Center
+- Live Spatial Map: Uses Leaflet to display all active emergencies and smoothly animates incoming ambulance GPS coordinates (`responder_location_update`).
+- Overpass API Integration: Dynamically fetches real-world nearby hospitals (with a resilient mock-data fallback to prevent demo crashes).
+- Actionable UI: Allows dispatchers to select a victim and use a "Route to Hospital" dropdown, emitting a `route_to_hospital` socket event directly to the chosen hospital's specific Socket room.
+
+D. Responder App (Paramedic iPad UI)
+- Mission Flow: Receives `dispatch_accepted` events. 
+- Real-Time GPS Simulation (Ghost Driver): For presentation purposes, the app features a `setInterval` script that algorithmically increments the paramedic's latitude/longitude every 2 seconds, physically moving the ambulance on the Dispatcher map.
+- State Machine: Touch-friendly buttons update the mission phase ("En Route" -> "On Scene" -> "Transporting"), emitting `responder_status_update`.
+- Contextual Awareness: Displays the victim's ML Triage Score and Medical Vault preview so paramedics prep equipment en route.
+
+E. Hospital ER Dashboard
+- Targeted Rooms: Joins a specific socket room (e.g., `hospital_Apollo`).
+- Inbound Queue: Listens for `inbound_patient` events. When a patient is routed, it triggers a visual/audio siren alert on the dashboard.
+- ER Prep: Displays the incoming ambulance unit, ETA, and the victim's Medical Vault (allergies/blood type) for immediate surgical prep.
+- Interactive Toggles: Features a "Trauma Team Ready" button (`hospital_acknowledge`) and an "ER Divert Mode" toggle (`hospital_divert`) to signal to dispatchers that the ER is at full capacity.
+
+4. SYSTEM LOAD TESTING & VALIDATION
+- Mass Casualty Simulator (`simulate_pileup.js`): A custom Node.js stress-testing script designed to simulate a multi-vehicle pileup. It rapidly fires 15 concurrent SOS requests with randomized vitals and GPS coordinates within a specific bounding box (Chennai/SRM area).
+- Proves that the Node.js backend, PostGIS spatial writes, and Python FastAPI ML engine can handle highly concurrent, async emergency data without bottlenecking or crashing.
+
+====================================================================
+NOTEBOOK LM INSTRUCTIONS:
+When asked to write the Introduction, Problem Statement, Literature Review, or Methodology, you MUST use the uploaded PDF research papers to highlight the flaws in legacy systems (latency, lack of data, poor routing). 
+Then, you MUST explicitly position the "LiveBridge" architecture described above as the exact technological solution to those flaws. Reference specific technologies used in LiveBridge (e.g., PostGIS, Zero-Shot NLP, Socket.io, Medical Vaults) when explaining how the system addresses the gaps identified in the literature.
+====================================================================

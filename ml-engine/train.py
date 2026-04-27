@@ -28,6 +28,13 @@ model = RandomForestClassifier(n_estimators=50, random_state=42, class_weight='b
 model.fit(X, y)
 
 print("💾 4. Saving the trained AI brain...")
-joblib.dump(model, 'triage_model.pkl')
+print("💾 4. Saving the trained AI bundle...")
+# Package the brain, the columns, and the translation book together!
+bundle = {
+    "model": model,
+    "feature_cols": list(X.columns),
+    "feature_mapping": feature_mapping
+}
 
-print("✅ SUCCESS: Advanced AI Model saved as 'triage_model.pkl'!")
+joblib.dump(bundle, 'triage_model.pkl')
+print("✅ SUCCESS: Advanced AI Bundle saved!")

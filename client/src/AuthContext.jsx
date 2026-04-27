@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError('');
     try {
-      const r = await fetch(`${API}/api/auth/register`, {
+      const r = await fetch('http://localhost:8000/api/auth/register', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ name, phone_number, password }),

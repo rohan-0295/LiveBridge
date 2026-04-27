@@ -1075,18 +1075,33 @@ function loadDisplayVault() {
 function saveDisplayVault(v) {
   try { localStorage.setItem('lb_medical_vault', JSON.stringify(v)); } catch {}
 }
-
 function MedicalVault({ onClose }) {
+  const { authFetch } = useAuth(); // 👈 1. ADD THIS LINE to get your auth token!
   const [vault, setVaultState] = useState(loadDisplayVault);
   const [editing, setEditing]  = useState(false);
   const [draft,   setDraft]    = useState(null);
 
   const startEdit  = () => { setDraft(JSON.parse(JSON.stringify(vault))); setEditing(true); };
   const cancelEdit = () => { setEditing(false); setDraft(null); };
-  const saveEdit   = () => {
+  
+  // 👇 2. REPLACE YOUR ENTIRE saveEdit FUNCTION WITH THIS:
+  const saveEdit   = async () => {
+    // Save to LocalStorage so the phone UI updates instantly
     saveDisplayVault(draft);
     setVaultState(draft);
     setEditing(false);
+    
+    // THE CRUCIAL FIX: Actually send the data to PostgreSQL!
+    try {
+      await authFetch('http://localhost:8000/api/vault', {
+        method: 'POST',
+        body: JSON.stringify(draft)
+      });
+      console.log('✅ Vault successfully synced to PostgreSQL database!');
+    } catch (err) {
+      console.error('❌ Failed to sync vault to DB:', err);
+    }
+    
     setDraft(null);
   };
 
